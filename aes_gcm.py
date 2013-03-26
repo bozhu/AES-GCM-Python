@@ -32,6 +32,7 @@ class AES_GCM:
         self.__master_key = long_to_bytes(master_key, 16)
         self.__aes_ecb = AES.new(self.__master_key, AES.MODE_ECB)
         self.__auth_key = bytes_to_long(self.__aes_ecb.encrypt(b'\x00' * 16))
+        print 'auth_key', hex(self.__auth_key)
 
         # precompute the table for multiplication in finite field
         table = []
@@ -42,11 +43,12 @@ class AES_GCM:
             table.append(tuple(row))
         self.__pre_table = tuple(table)
 
-    def times_auth_key(self, val):
+    def __times_auth_key(self, val):
         res = 0
         for i in range(16):
             res ^= self.__pre_table[i][val & 0xFF]
             val >>= 8
+        return res
 
     def encrypt(self, init_value, plaintext, auth_data=b''):
         assert init_value < (1 << 96)
@@ -54,10 +56,11 @@ class AES_GCM:
         len_plaintext = len(plaintext)
 
         if len_plaintext > 0:
-            counter = Counter.new(128,
-                    prefix=long_to_bytes(init_value, 12),
-                    initial_value=2,  # notice this
-                    allow_wraparound=True)
+            counter = Counter.new(
+                nbits=32,
+                prefix=long_to_bytes(init_value, 12),
+                initial_value=2,  # notice this
+                allow_wraparound=True)
             aes_ctr = AES.new(self.__master_key, AES.MODE_CTR, counter=counter)
             # pad plaintext
             assert len(plaintext) % 16 == 0
@@ -72,9 +75,18 @@ class AES_GCM:
         if len_plaintext > 0:
             for i in range(len_plaintext // 16):
                 auth_tag ^= bytes_to_long(ciphertext[i * 16: (i + 1) * 16])
+                print hex(gf128_mul(auth_tag, self.__auth_key))
                 auth_tag = self.__times_auth_key(auth_tag)
-        auth_tag ^= self.__aes_ecb.encrypt(
-                long_to_bytes(init_value << 32 | 1, 16))
+                print 'X', hex(auth_tag)
+        # print 'len(A)||len(C)', \
+        #     hex(((8 * len_auth_data) << 64) | (8 * len_plaintext))  # bits
+        auth_tag ^= ((8 * len_auth_data) << 64) | (8 * len_plaintext)
+        auth_tag = self.__times_auth_key(auth_tag)
+        print 'GHASH', hex(auth_tag)
+        # print 'E(K, Y0)', hex(bytes_to_long(self.__aes_ecb.encrypt(
+        #                       long_to_bytes((init_value << 32) | 1, 16))))
+        auth_tag ^= bytes_to_long(self.__aes_ecb.encrypt(
+                                  long_to_bytes((init_value << 32) | 1, 16)))
 
         # unpad ciphertext
         assert len(ciphertext) == len_plaintext
@@ -87,4 +99,16 @@ class AES_GCM:
 
 
 if __name__ == '__main__':
-    print hex(gf128_mul(32, 1213))
+    master_key = 0x00000000000000000000000000000000
+    plaintext = b'\x00\x00\x00\x00\x00\x00\x00\x00' + \
+                b'\x00\x00\x00\x00\x00\x00\x00\x00'
+    auth_data = b''
+    init_value = 0x000000000000000000000000
+    ciphertext = b'\x03\x88\xda\xce\x60\xb6\xa3\x92' + \
+                 b'\xf3\x28\xc2\xb9\x71\xb2\xfe\x78'
+    auth_tag = 0xab6e47d42cec13bdf53a67b21257bddf
+
+    my_gcm = AES_GCM(master_key)
+    cipher, tag = my_gcm.encrypt(init_value, plaintext, auth_data)
+    print hex(bytes_to_long(cipher))
+    print hex(tag)
