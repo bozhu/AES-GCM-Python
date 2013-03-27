@@ -7,18 +7,25 @@ from Crypto.Util.number import long_to_bytes, bytes_to_long
 
 # GF(128) defined by 1 + a + a^2 + a^7 + a^128
 def gf128_mul(x, y):
-    assert x < 1 << 128
-    assert y < 1 << 128
-    res = 0
+    assert x < (1 << 128)
+    assert y < (1 << 128)
+    # res = 0
+    z = 0
+    v = x
     for i in range(128):
-        res ^= x * (y & 1)
-        y >>= 1
+        if (y & (1 << i)) == (1 << i):
+            z ^= v
 
-        rmd = (x >> 127) * 0b10000111
-        x = (x % (1 << 127)) << 1
-        x ^= rmd
-    assert res < 1 << 128
-    return res
+        if 0 == (v >> 127):
+            v <<= 1
+        else:
+            v <<= 1
+            v ^= 0b10000111
+        v %= (1 << 128)
+    assert z < (1 << 128)
+    return z
+    # assert res < 1 << 128
+    # return res
 
 
 # Galois/Counter Mode with AES-128 and 96-bit IV
@@ -32,7 +39,7 @@ class AES_GCM:
         self.__master_key = long_to_bytes(master_key, 16)
         self.__aes_ecb = AES.new(self.__master_key, AES.MODE_ECB)
         self.__auth_key = bytes_to_long(self.__aes_ecb.encrypt(b'\x00' * 16))
-        print 'auth_key', hex(self.__auth_key)
+        print 'H\t', hex(self.__auth_key)
 
         # precompute the table for multiplication in finite field
         table = []
@@ -75,16 +82,13 @@ class AES_GCM:
         if len_plaintext > 0:
             for i in range(len_plaintext // 16):
                 auth_tag ^= bytes_to_long(ciphertext[i * 16: (i + 1) * 16])
-                print hex(gf128_mul(auth_tag, self.__auth_key))
+                print 'fake X\t', hex(gf128_mul(auth_tag, self.__auth_key))
                 auth_tag = self.__times_auth_key(auth_tag)
-                print 'X', hex(auth_tag)
-        # print 'len(A)||len(C)', \
-        #     hex(((8 * len_auth_data) << 64) | (8 * len_plaintext))  # bits
+                print 'X\t', hex(auth_tag)
+        print 'len\t', hex(((8 * len_auth_data) << 64) | (8 * len_plaintext))  # bits
         auth_tag ^= ((8 * len_auth_data) << 64) | (8 * len_plaintext)
         auth_tag = self.__times_auth_key(auth_tag)
-        print 'GHASH', hex(auth_tag)
-        # print 'E(K, Y0)', hex(bytes_to_long(self.__aes_ecb.encrypt(
-        #                       long_to_bytes((init_value << 32) | 1, 16))))
+        print 'GHASH\t', hex(auth_tag)
         auth_tag ^= bytes_to_long(self.__aes_ecb.encrypt(
                                   long_to_bytes((init_value << 32) | 1, 16)))
 
@@ -99,6 +103,10 @@ class AES_GCM:
 
 
 if __name__ == '__main__':
+    # print bin(gf128_mul(1, 2))
+    print bin(gf128_mul(2, 1))
+    print bin(gf128_mul(2, 2**127))
+
     master_key = 0x00000000000000000000000000000000
     plaintext = b'\x00\x00\x00\x00\x00\x00\x00\x00' + \
                 b'\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -110,5 +118,5 @@ if __name__ == '__main__':
 
     my_gcm = AES_GCM(master_key)
     cipher, tag = my_gcm.encrypt(init_value, plaintext, auth_data)
-    print hex(bytes_to_long(cipher))
-    print hex(tag)
+    print 'C\t', hex(bytes_to_long(cipher))
+    print 'T\t', hex(tag)
