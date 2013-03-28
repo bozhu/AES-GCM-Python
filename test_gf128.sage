@@ -1,14 +1,14 @@
 #!/usr/bin/env sage
 
 B.<x> = GF(2)[]
-F.<a> = GF(2**128, modulus=x**128 + x**7 + x**2 + x + 1)
+F.<a> = GF(2 ^ 128, modulus=x ^ 128 + x ^ 7 + x ^ 2 + x + 1)
 
 
 def int2ele(integer):
     res = 0
     deg = 0
     while integer > 0:
-        res += (integer & 1) * (a ** deg)
+        res += (integer & 1) * (a ^ deg)
         integer >>= 1
         deg += 1
     return res
