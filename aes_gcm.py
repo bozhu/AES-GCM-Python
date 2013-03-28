@@ -82,12 +82,13 @@ class AES_GCM:
         if len_plaintext > 0:
             for i in range(len_plaintext // 16):
                 auth_tag ^= bytes_to_long(ciphertext[i * 16: (i + 1) * 16])
-                print 'fake X\t', hex(gf128_mul(auth_tag, self.__auth_key))
-                auth_tag = self.__times_auth_key(auth_tag)
+                # auth_tag = self.__times_auth_key(auth_tag)
+                auth_tag = gf128_mul(auth_tag, self.__auth_key)
                 print 'X\t', hex(auth_tag)
-        print 'len\t', hex(((8 * len_auth_data) << 64) | (8 * len_plaintext))  # bits
+        print 'len\t', hex(((8 * len_auth_data) << 64) | (8 * len_plaintext))
         auth_tag ^= ((8 * len_auth_data) << 64) | (8 * len_plaintext)
-        auth_tag = self.__times_auth_key(auth_tag)
+        # auth_tag = self.__times_auth_key(auth_tag)
+        auth_tag = gf128_mul(auth_tag, self.__auth_key)
         print 'GHASH\t', hex(auth_tag)
         auth_tag ^= bytes_to_long(self.__aes_ecb.encrypt(
                                   long_to_bytes((init_value << 32) | 1, 16)))
@@ -105,7 +106,7 @@ class AES_GCM:
 if __name__ == '__main__':
     # print bin(gf128_mul(1, 2))
     print bin(gf128_mul(2, 1))
-    print bin(gf128_mul(2, 2**127))
+    print bin(gf128_mul(2 ** 2, 2 ** 127))
 
     master_key = 0x00000000000000000000000000000000
     plaintext = b'\x00\x00\x00\x00\x00\x00\x00\x00' + \
