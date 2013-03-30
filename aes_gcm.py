@@ -27,9 +27,9 @@ from Crypto.Util import Counter
 from Crypto.Util.number import long_to_bytes, bytes_to_long
 
 
-# GF(128) defined by 1 + a + a^2 + a^7 + a^128
+# GF(2^128) defined by 1 + a + a^2 + a^7 + a^128
 # Please note the MSB is x0 and LSB is x127
-def gf128_mul(x, y):
+def gf_2_128_mul(x, y):
     assert x < (1 << 128)
     assert y < (1 << 128)
     res = 0
@@ -40,13 +40,29 @@ def gf128_mul(x, y):
     return res
 
 
+class InvalidInputException(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return str(self.msg)
+
+
+class InvalidTagException(Exception):
+    def __str__(self):
+        return 'The authenticaiton tag is invalid.'
+
+
 # Galois/Counter Mode with AES-128 and 96-bit IV
 class AES_GCM:
     def __init__(self, master_key):
         self.change_key(master_key)
+        self.prev_init_value = None
 
     def change_key(self, master_key):
-        assert master_key < (1 << 128)
+        if master_key >= (1 << 128):
+            raise InvalidInputException('Master key should be 128-bit')
+
         self.__master_key = long_to_bytes(master_key, 16)
         self.__aes_ecb = AES.new(self.__master_key, AES.MODE_ECB)
         self.__auth_key = bytes_to_long(self.__aes_ecb.encrypt(b'\x00' * 16))
@@ -56,7 +72,7 @@ class AES_GCM:
         for i in range(16):
             row = []
             for j in range(256):
-                row.append(gf128_mul(self.__auth_key, j << (8 * i)))
+                row.append(gf_2_128_mul(self.__auth_key, j << (8 * i)))
             table.append(tuple(row))
         self.__pre_table = tuple(table)
 
@@ -93,7 +109,13 @@ class AES_GCM:
         return tag
 
     def encrypt(self, init_value, plaintext, auth_data=b''):
-        assert init_value < (1 << 96)
+        if init_value >= (1 << 96):
+            raise InvalidInputException('IV should be 96-bit')
+        # a naive checking for IV reuse
+        if init_value == self.prev_init_value:
+            raise InvalidInputException('IV must not be reused!')
+        self.prev_init_value = init_value
+
         len_plaintext = len(plaintext)
         # len_auth_data = len(auth_data)
 
@@ -125,14 +147,17 @@ class AES_GCM:
         return ciphertext, auth_tag
 
     def decrypt(self, init_value, ciphertext, auth_tag, auth_data=b''):
-        assert init_value < (1 << 96)
-        assert auth_tag < (1 << 128)
+        if init_value >= (1 << 96):
+            raise InvalidInputException('IV should be 96-bit')
+        if auth_tag >= (1 << 128):
+            raise InvalidInputException('Tag should be 128-bit')
+
+        if auth_tag != self.__ghash(auth_data, ciphertext) ^ \
+                bytes_to_long(self.__aes_ecb.encrypt(
+                long_to_bytes((init_value << 32) | 1, 16))):
+            raise InvalidTagException
+
         len_ciphertext = len(ciphertext)
-
-        assert auth_tag == self.__ghash(auth_data, ciphertext) ^ \
-            bytes_to_long(self.__aes_ecb.encrypt(
-                long_to_bytes((init_value << 32) | 1, 16)))
-
         if len_ciphertext > 0:
             counter = Counter.new(
                 nbits=32,
@@ -185,5 +210,5 @@ if __name__ == '__main__':
     print 'encrypted:', hex(bytes_to_long(encrypted))
     print 'auth tag: ', hex(new_tag)
 
-    decrypted = my_gcm.decrypt(init_value, encrypted, new_tag, auth_data)
+    decrypted = my_gcm.decrypt(init_value, encrypted, new_tag + 1, auth_data)
     print 'decrypted:', hex(bytes_to_long(decrypted))

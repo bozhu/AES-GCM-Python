@@ -2,8 +2,7 @@
 *.swp
 *~
 .DS_Store
-test_gf128.py
-check_gf128_mul.py
+check_gf_mul.py
 
 # C extensions
 *.so

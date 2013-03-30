@@ -44,11 +44,11 @@ def ele2int(element):
     return res
 
 
-def gf128_mul_correct(x1, x2):
+def gf_2_128_mul_correct(x1, x2):
     return ele2int(int2ele(x1) * int2ele(x2))
 
 
-from aes_gcm import gf128_mul as gf128_mul_to_verify
+from aes_gcm import gf_2_128_mul as gf_2_128_mul_to_verify
 
 
 if __name__ == '__main__':
@@ -58,6 +58,6 @@ if __name__ == '__main__':
     for i in range(1000):
         x = bytes_to_long(urandom(16))  # 16 bytes
         h = bytes_to_long(urandom(16))
-        assert gf128_mul_to_verify(x, h) == gf128_mul_correct(x, h)
+        assert gf_2_128_mul_to_verify(x, h) == gf_2_128_mul_correct(x, h)
 
     print '1000 random test cases passed!'
