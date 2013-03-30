@@ -8,8 +8,8 @@ from Crypto.Util.number import long_to_bytes, bytes_to_long
 # GF(128) defined by 1 + a + a^2 + a^7 + a^128
 # Please note the MSB is x0 and LSB is x127
 def gf128_mul(x, y):
-    assert x < 1 << 128
-    assert y < 1 << 128
+    assert x < (1 << 128)
+    assert y < (1 << 128)
     res = 0
     for i in range(127, -1, -1):
         res ^= x * ((y >> i) & 1)  # branchless
@@ -30,7 +30,7 @@ class AES_GCM:
         self.__auth_key = bytes_to_long(self.__aes_ecb.encrypt(b'\x00' * 16))
 
         # precompute the table for multiplication in finite field
-        table = []
+        table = []  # for 8-bit
         for i in range(16):
             row = []
             for j in range(256):
@@ -85,7 +85,7 @@ class AES_GCM:
 
             if 0 != len_plaintext % 16:
                 padded_plaintext = plaintext + \
-                        b'\x00' * (16 - len_plaintext % 16)
+                    b'\x00' * (16 - len_plaintext % 16)
             else:
                 padded_plaintext = plaintext
             ciphertext = aes_ctr.encrypt(padded_plaintext)[:len_plaintext]
@@ -102,9 +102,34 @@ class AES_GCM:
         assert auth_tag < (1 << 128)
         return ciphertext, auth_tag
 
-    def decrypt(self, init_value, ciphertext, auth_data=b''):
+    def decrypt(self, init_value, ciphertext, auth_tag, auth_data=b''):
         assert init_value < (1 << 96)
-        # TODO
+        assert auth_tag < (1 << 128)
+        len_ciphertext = len(ciphertext)
+
+        assert auth_tag == self.__ghash(auth_data, ciphertext) ^ \
+            bytes_to_long(self.__aes_ecb.encrypt(
+                long_to_bytes((init_value << 32) | 1, 16)))
+
+        if len_ciphertext > 0:
+            counter = Counter.new(
+                nbits=32,
+                prefix=long_to_bytes(init_value, 12),
+                initial_value=2,
+                allow_wraparound=True)
+            aes_ctr = AES.new(self.__master_key, AES.MODE_CTR, counter=counter)
+
+            if 0 != len_ciphertext % 16:
+                padded_ciphertext = ciphertext + \
+                    b'\x00' * (16 - len_ciphertext % 16)
+            else:
+                padded_ciphertext = ciphertext
+            plaintext = aes_ctr.decrypt(padded_ciphertext)[:len_ciphertext]
+
+        else:
+            plaintext = b''
+
+        return plaintext
 
 
 if __name__ == '__main__':
@@ -131,7 +156,12 @@ if __name__ == '__main__':
                  b'\x3d\x58\xe0\x91'
     auth_tag = 0x5bc94fbc3221a5db94fae95ae7121a47
 
+    print 'plaintext:', hex(bytes_to_long(plaintext))
+
     my_gcm = AES_GCM(master_key)
-    cipher, tag = my_gcm.encrypt(init_value, plaintext, auth_data)
-    print 'C\t', hex(bytes_to_long(cipher))
-    print 'T\t', hex(tag)
+    encrypted, new_tag = my_gcm.encrypt(init_value, plaintext, auth_data)
+    print 'encrypted:', hex(bytes_to_long(encrypted))
+    print 'auth tag: ', hex(new_tag)
+
+    decrypted = my_gcm.decrypt(init_value, encrypted, new_tag, auth_data)
+    print 'decrypted:', hex(bytes_to_long(decrypted))

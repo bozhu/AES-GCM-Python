@@ -30,11 +30,12 @@ from aes_gcm import gf128_mul as gf128_mul_to_verify
 
 
 if __name__ == '__main__':
-    from random import getrandbits
+    from os import urandom
+    from Crypto.Util.number import bytes_to_long
 
     for i in range(1000):
-        x = getrandbits(128)
-        h = getrandbits(128)
+        x = bytes_to_long(urandom(16))  # 16 bytes
+        h = bytes_to_long(urandom(16))
         assert gf128_mul_to_verify(x, h) == gf128_mul_correct(x, h)
 
     print '1000 random test cases passed!'

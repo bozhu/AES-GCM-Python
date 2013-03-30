@@ -2,6 +2,8 @@
 
 from aes_gcm import AES_GCM
 from pprint import pprint
+from Crypto.Random.random import getrandbits
+from Crypto.Util.number import long_to_bytes
 
 test_cases = ({
     'master_key': 0x00000000000000000000000000000000,
@@ -71,13 +73,47 @@ if __name__ == '__main__':
 
     for test_data in test_cases:
         test_gcm = AES_GCM(test_data['master_key'])
-        cipher, tag = test_gcm.encrypt(
+        encrypted, tag = test_gcm.encrypt(
             test_data['init_value'],
             test_data['plaintext'],
             test_data['auth_data']
         )
 
-        if cipher != test_data['ciphertext'] or tag != test_data['auth_tag']:
+        states = []
+        tags = []
+        ivs = []
+        aads = []
+
+        # extra encryptions
+        s = encrypted
+        for i in range(1000):
+            iv = getrandbits(96)
+            a = long_to_bytes(getrandbits(1024))
+            s, t = test_gcm.encrypt(iv, s, a)
+            states.append(s)
+            tags.append(t)
+            ivs.append(iv)
+            aads.append(a)
+
+        # extra decryptions
+        for i in range(999, -1, -1):
+            assert s == states[i]
+            iv = ivs[i]
+            t = tags[i]
+            a = aads[i]
+            s = test_gcm.decrypt(iv, s, t, a)
+        encrypted = s
+
+        decrypted = test_gcm.decrypt(
+            test_data['init_value'],
+            encrypted,
+            tag,
+            test_data['auth_data']
+        )
+
+        if encrypted != test_data['ciphertext'] or \
+                tag != test_data['auth_tag'] or \
+                decrypted != test_data['plaintext']:
             num_failures += 1
             print 'This test case failed:'
             pprint(test_data)
