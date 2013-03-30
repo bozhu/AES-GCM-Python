@@ -57,7 +57,6 @@ class InvalidTagException(Exception):
 class AES_GCM:
     def __init__(self, master_key):
         self.change_key(master_key)
-        self.prev_init_value = None
 
     def change_key(self, master_key):
         if master_key >= (1 << 128):
@@ -75,6 +74,8 @@ class AES_GCM:
                 row.append(gf_2_128_mul(self.__auth_key, j << (8 * i)))
             table.append(tuple(row))
         self.__pre_table = tuple(table)
+
+        self.prev_init_value = None  # reset
 
     def __times_auth_key(self, val):
         res = 0
