@@ -6,16 +6,20 @@ FF.<A> = GF(2 ^ 128, modulus=X ^ 128 + X ^ 7 + X ^ 2 + X + 1)
 
 def int2ele(integer):
     res = 0
-    deg = 0
-    while integer > 0:
-        res += (integer & 1) * (A ^ deg)
+    for i in range(128):
+        # rightmost bit is x127
+        res += (integer & 1) * (A ^ (127 - i))
         integer >>= 1
-        deg += 1
     return res
 
 
 def ele2int(element):
-    return element.integer_representation()
+    integer = element.integer_representation()
+    res = 0
+    for i in range(128):
+        res = (res << 1) + (integer & 1)
+        integer >>= 1
+    return res
 
 
 def gf128_mul_correct(x1, x2):
@@ -33,4 +37,4 @@ if __name__ == '__main__':
         h = getrandbits(128)
         assert gf128_mul_to_verify(x, h) == gf128_mul_correct(x, h)
 
-    print 'All tests passed!'
+    print '1000 random test cases passed!'
