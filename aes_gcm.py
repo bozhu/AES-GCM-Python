@@ -5,27 +5,33 @@ from Crypto.Util import Counter
 from Crypto.Util.number import long_to_bytes, bytes_to_long
 
 
+def reverse_128bit(n):
+    res = 0
+    for i in range(128):
+        res <<= 1
+        res += n & 1
+        n >>= 1
+    return res
+
+
 # GF(128) defined by 1 + a + a^2 + a^7 + a^128
 def gf128_mul(x, y):
-    assert x < (1 << 128)
-    assert y < (1 << 128)
-    # res = 0
-    z = 0
-    v = x
-    for i in range(128):
-        if (y & (1 << i)) == (1 << i):
-            z ^= v
+    assert x < 1 << 128
+    assert y < 1 << 128
 
-        if 0 == (v >> 127):
-            v <<= 1
-        else:
-            v <<= 1
-            v ^= 0b10000111
-        v %= (1 << 128)
-    assert z < (1 << 128)
-    return z
-    # assert res < 1 << 128
-    # return res
+    x = reverse_128bit(x)
+    y = reverse_128bit(y)
+    res = 0
+    for i in range(128):
+        res ^= x * (y & 1)  # branchless
+        y >>= 1
+
+        rmd = (x >> 127) * 0b10000111
+        x = (x % (1 << 127)) << 1
+        x ^= rmd
+
+    assert res < 1 << 128
+    return reverse_128bit(res)
 
 
 # Galois/Counter Mode with AES-128 and 96-bit IV
@@ -83,12 +89,15 @@ class AES_GCM:
             for i in range(len_plaintext // 16):
                 auth_tag ^= bytes_to_long(ciphertext[i * 16: (i + 1) * 16])
                 # auth_tag = self.__times_auth_key(auth_tag)
+                print 'pre X\t', hex(auth_tag)
                 auth_tag = gf128_mul(auth_tag, self.__auth_key)
                 print 'X\t', hex(auth_tag)
-        print 'len\t', hex(((8 * len_auth_data) << 64) | (8 * len_plaintext))
-        auth_tag ^= ((8 * len_auth_data) << 64) | (8 * len_plaintext)
-        # auth_tag = self.__times_auth_key(auth_tag)
-        auth_tag = gf128_mul(auth_tag, self.__auth_key)
+        if len_auth_data + len_plaintext > 0:
+            print 'len\t', \
+                    hex(((8 * len_auth_data) << 64) | (8 * len_plaintext))
+            auth_tag ^= ((8 * len_auth_data) << 64) | (8 * len_plaintext)
+            # auth_tag = self.__times_auth_key(auth_tag)
+            auth_tag = gf128_mul(auth_tag, self.__auth_key)
         print 'GHASH\t', hex(auth_tag)
         auth_tag ^= bytes_to_long(self.__aes_ecb.encrypt(
                                   long_to_bytes((init_value << 32) | 1, 16)))
@@ -107,6 +116,7 @@ if __name__ == '__main__':
     # print bin(gf128_mul(1, 2))
     print bin(gf128_mul(2, 1))
     print bin(gf128_mul(2 ** 2, 2 ** 127))
+    print hex(gf128_mul(0x5e2ec746917062882c85b0685353deb7 ^ 0x80, 0x66e94bd4ef8a2c3b884cfa59ca342b2e))
 
     master_key = 0x00000000000000000000000000000000
     plaintext = b'\x00\x00\x00\x00\x00\x00\x00\x00' + \

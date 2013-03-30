@@ -1,14 +1,14 @@
 #!/usr/bin/env sage
 
-B.<x> = GF(2)[]
-F.<a> = GF(2 ^ 128, modulus=x ^ 128 + x ^ 7 + x ^ 2 + x + 1)
+BF.<X> = GF(2)[]
+FF.<A> = GF(2 ^ 128, modulus=X ^ 128 + X ^ 7 + X ^ 2 + X + 1)
 
 
 def int2ele(integer):
     res = 0
     deg = 0
     while integer > 0:
-        res += (integer & 1) * (a ^ deg)
+        res += (integer & 1) * (A ^ deg)
         integer >>= 1
         deg += 1
     return res
@@ -24,11 +24,13 @@ def gf128_mul_correct(x1, x2):
 
 from aes_gcm import gf128_mul as gf128_mul_to_verify
 
-from random import getrandbits
 
-for i in range(1000):
-    x = getrandbits(128)
-    h = getrandbits(128)
-    assert gf128_mul_to_verify(x, h) == gf128_mul_correct(x, h)
+if __name__ == '__main__':
+    from random import getrandbits
 
-print 'All tests passed!'
+    for i in range(1000):
+        x = getrandbits(128)
+        h = getrandbits(128)
+        assert gf128_mul_to_verify(x, h) == gf128_mul_correct(x, h)
+
+    print 'All tests passed!'
