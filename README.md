@@ -2,7 +2,7 @@
 
 A Python implementation of the authenticated encryption mode [Galois/Counter Mode (GCM)](http://en.wikipedia.org/wiki/Galois/Counter_Mode).
 
-Currently it supports only 128-bit AES and 96-bit IV.
+Currently it supports only 128-bit AES and 96-bit nonce.
 
 ## Dependencies
 
