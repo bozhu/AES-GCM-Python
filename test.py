@@ -137,11 +137,11 @@ if __name__ == '__main__':
                 tag != test_data['auth_tag'] or \
                 decrypted != test_data['plaintext']:
             num_failures += 1
-            print 'This test case failed:'
+            print('This test case failed:')
             pprint(test_data)
-            print
+            print()
 
     if num_failures == 0:
-        print 'All test cases passed!'
+        print('All test cases passed!')
     else:
-        print num_failures, 'test cases failed in total.'
+        print(num_failures, 'test cases failed in total.')
