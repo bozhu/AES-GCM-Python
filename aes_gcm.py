@@ -125,7 +125,7 @@ class AES_GCM:
                 nbits=32,
                 prefix=long_to_bytes(init_value, 12),
                 initial_value=2,  # notice this
-                allow_wraparound=True)
+                allow_wraparound=False)
             aes_ctr = AES.new(self.__master_key, AES.MODE_CTR, counter=counter)
 
             if 0 != len_plaintext % 16:
